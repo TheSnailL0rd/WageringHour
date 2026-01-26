@@ -22,16 +22,37 @@ public class SpinnerController : MonoBehaviour
     public GetWheelResult gwr;
     private bool resultFound;
     public int segmentTypeSelected;
+    private bool canGetResult;
+
+    public bool confirmButtonActive;
+
+    public bool canSpin = true;
+
+    //Pointer Movement
+    [SerializeField] private PointerController pointerController;
 
     private void Start()
     {
-        GenerateWheel();
-        SpinWheel();
+        NewRound();
+    }
+
+    public void PrepWheel()
+    {
+        if (PlayerStats.spinsRemaining > 0)
+        {
+            GenerateWheel();
+            pointerController.canMove = false;
+            confirmButtonActive = false;
+            Invoke("SpinWheel", 1f);
+        }
+        else
+        {
+            NewRound();
+        }
     }
 
     public void GenerateWheel()
     {
-        // Initialize counters to match the number of materials
         currentCounts = new List<int>(new int[mats.Count]);
         
         if(segmentTypes.Count != segments.Count) 
@@ -41,8 +62,6 @@ public class SpinnerController : MonoBehaviour
         {
             int chosenType = -1;
 
-            // 1. Logic for "Following" (Clumping)
-            // Check if the PREVIOUS color still has room left before repeating it
             if (i != 0 && ticks < 15 && Random.Range(0, 100) >= 10)
             {
                 int prevType = segmentTypes[i - 1];
@@ -53,11 +72,9 @@ public class SpinnerController : MonoBehaviour
                 }
             }
 
-            // 2. Fallback to Random if no clumping happened or color was full
             if (chosenType == -1)
             {
                 ticks = 0;
-                // Get a list of only colors that are NOT at their limit
                 List<int> validTypes = new List<int>();
                 for (int t = 0; t < mats.Count; t++)
                 {
@@ -65,19 +82,16 @@ public class SpinnerController : MonoBehaviour
                         validTypes.Add(t);
                 }
 
-                // Pick a random available color
                 if (validTypes.Count > 0)
                 {
                     chosenType = validTypes[Random.Range(0, validTypes.Count)];
                 }
                 else
                 {
-                    // Safety: all colors are full, default to the first one
                     chosenType = 0;
                 }
             }
 
-            // 3. Apply the results
             segmentTypes[i] = chosenType;
             segments[i].GetComponent<MeshRenderer>().material = mats[chosenType];
             currentCounts[chosenType]++;
@@ -88,8 +102,10 @@ public class SpinnerController : MonoBehaviour
     {
         float spinningTime = Random.Range(3f,5f);
         isSpinning = true;
-        currentSpinForce = spinPower;
+        currentSpinForce = Random.Range(spinPower-1f, spinPower+3f);
         resultFound = false;
+        canGetResult = true;
+        PlayerStats.spinsRemaining -= 1;
     }
 
     private void FixedUpdate()
@@ -108,8 +124,10 @@ public class SpinnerController : MonoBehaviour
             currentSpinForce = 0;
         }
 
-        if (currentSpinForce == 0 && !resultFound)
+        if (currentSpinForce == 0 && !resultFound && canGetResult)
+        {
             GetResult();
+        }
     }
 
     private void GetResult()
@@ -117,21 +135,85 @@ public class SpinnerController : MonoBehaviour
         if (!resultFound)
             segmentTypeSelected = segmentTypes[gwr.result];
         resultFound = true;
+        canGetResult = false;
 
-        switch (segmentTypeSelected)
+        if (!PlayerStats.insanityEnabled) //Not Insane
         {
-            case 0: //Money Segment
-                Debug.Log("Money Segment");
-                break;
-            case 1: //Safe Segment
-                Debug.Log("Safe Segment");
-                break;
-            case 2: //Mystery Segment
-                Debug.Log("Mystery Segment");
-                break;
-            case 3: //Death Segment
-                Debug.Log("Death Segment");
-                break;
+            switch (segmentTypeSelected)
+            {
+                case 0: //Money Segment - +1-+5 chips (R0)
+                    PlayerStats.chips += Random.Range(1,5);
+                    break;
+                case 1: //Safe Segment - Nothing (R0)
+                    Debug.Log("Safe Segment"); //No insanity diff
+                    break;
+                case 2: //Mystery Segment - Minigame (R0)
+                    canSpin = false;
+                    break;
+                case 3: //Death Segment - Lose Chips (R0)
+                    PlayerStats.chips -= 3;
+                    break;
+                case 4: //Insanity Segment - Insanity Mode (R5+) R10 = 100%
+                    PlayerStats.insanityEnabled = true; //Once this segment has been picked some segments change
+                    break;
+                case 5: //Pit Segment - (R5+ Insanity)
+                    //Can't appear outside of Insanity Mode
+                    break;
+                case 6: //Witching Hour (R10+ Insanity)
+                    //Can't appear outside of Insanity Mode
+                    break;
+                case 7: //Freedom (R10+) 10%
+                    Debug.Log("Fr3Ed0M..."); //Gives the player to end the run
+                    break;
+            }
         }
+        else //Insane
+        {
+            switch (segmentTypeSelected)
+            {
+                case 0: //Money Segment - +1-+5 chips (R0)
+                    PlayerStats.chips += Random.Range(1,5);
+                    break;
+                case 1: //Safe Segment - Nothing (R0)
+                    Debug.Log("Safe Segment"); //No insanity diff
+                    break;
+                case 2: //Mystery Segment - Minigame (R0)
+                    Debug.Log("Mystery Segment"); //insanity: Analog horror type minigames
+                    break;
+                case 3: //Death Segment - Lose Chips (R0)
+                    Debug.Log("Death Segment"); //insanity: Dodge clockman's gunshots
+                    break;
+                case 4: //Insanity Segment - Insanity Mode (R5+) R10 = 100%
+                    //Can't appear in Insanity Mode
+                    break;
+                case 5: //Pit Segment - (R5+ Insanity)
+                    Debug.Log("The Pit Segment"); //Drops the player into a pit (quick time events)
+                    break;
+                case 6: //Witching Hour (R10+ Insanity)
+                    Debug.Log("Witching Hour"); //Forces the player into a labrynth where they must hide
+                    break;
+                case 7: //Freedom (R10+) 10%
+                    Debug.Log("Fr3Ed0M..."); //Gives the player to end the run
+                    break;
+            }
+        }
+
+        if (PlayerStats.spinsRemaining > 0)
+        {
+            if (canSpin)
+            {
+                Invoke("GenerateWheel", 1f);
+                pointerController.canMove = false;
+                confirmButtonActive = false;
+                Invoke("SpinWheel", 2f);
+            }
+        }
+    }
+
+    public void NewRound()
+    {
+        PlayerStats.spinsRemaining = 5;
+        PlayerStats.currentRound += 1;
+        confirmButtonActive = true;
     }
 }
