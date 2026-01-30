@@ -208,6 +208,10 @@ public class SpinnerController : MonoBehaviour
                 Invoke("SpinWheel", 2f);
             }
         }
+        else if (PlayerStats.spinsRemaining == 0)
+        {
+            Shop();
+        }
     }
 
     public void NewRound()
@@ -215,5 +219,11 @@ public class SpinnerController : MonoBehaviour
         PlayerStats.spinsRemaining = 5;
         PlayerStats.currentRound += 1;
         confirmButtonActive = true;
+        pointerController.canMove = true;
+    }
+
+    private void Shop()
+    {
+        NewRound();
     }
 }
